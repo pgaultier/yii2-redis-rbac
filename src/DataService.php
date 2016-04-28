@@ -786,17 +786,26 @@ class DataService extends Object
     public function removeAllAssignments()
     {
         $roleAssignKey = $this->getRoleAssignmentsKey('*');
+        $userAssignKey = $this->getUserAssignmentsKey('*');
+        $assignmentKeys = [];
+
         $nextCursor = 0;
-        $roleAssignKeys = [];
         do {
             list($nextCursor, $keys) = $this->db->executeCommand('SCAN', [$nextCursor, 'MATCH', $roleAssignKey]);
-            $roleAssignKeys = array_merge($roleAssignKeys, $keys);
+            $assignmentKeys = array_merge($assignmentKeys, $keys);
 
-        } while($nextCursor == 0);
+        } while($nextCursor != 0);
 
-        return $roleAssignKeys;
-        // $this->db->executeCommand('MULTI');
-        // $this->db->executeCommand('EXEC');
+        $nextCursor = 0;
+        do {
+            list($nextCursor, $keys) = $this->db->executeCommand('SCAN', [$nextCursor, 'MATCH', $userAssignKey]);
+            $assignmentKeys = array_merge($assignmentKeys, $keys);
+
+        } while($nextCursor != 0);
+
+        if (count($assignmentKeys) > 0) {
+            $this->db->executeCommand('DEL', $assignmentKeys);
+        }
     }
 
     public function removeAllItems($type)
@@ -806,6 +815,51 @@ class DataService extends Object
             $this->removeItem($item);
         }
     }
+
+    /**
+     * @inheritdoc
+     */
+    public function getRolesByUser($userId)
+    {
+        if (!isset($userId) || $userId === '') {
+            return [];
+        }
+
+        $roleGuids = $this->db->executeCommand('ZRANGEBYSCORE', [$this->getUserAssignmentsKey($userId), '-inf', '+inf']);
+
+        $roles = [];
+        if (count($roleGuids) > 0) {
+            array_unshift($roleGuids, $this->getItemMappingGuidKey());
+            $roleNames = $this->db->executeCommand ('HMGET', $roleGuids);
+            foreach ($roleNames as $roleName) {
+                $roles[$roleName] = $this->getItem($roleName);
+            }
+        }
+
+        return $roles;
+    }
+
+    /**
+     * Returns all role assignment information for the specified role.
+     * @param string $roleName
+     * @return Assignment[] the assignments. An empty array will be
+     * returned if role is not assigned to any user.
+     * @since 2.0.7
+     */
+    public function getUserIdsByRole($roleName)
+    {
+        if (empty($roleName)) {
+            return [];
+        }
+        $roleGuid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $roleName]);
+        $userIds = [];
+        if ($roleGuid !== null) {
+            $userIds = $this->db->executeCommand('ZRANGEBYSCORE', [$this->getRoleAssignmentsKey($roleGuid), '-inf', '+inf']);
+        }
+        return $userIds;
+    }
+
+
 
 
     /**
