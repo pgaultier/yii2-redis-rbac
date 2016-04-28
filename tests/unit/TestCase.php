@@ -28,12 +28,7 @@ abstract class TestCase extends \PHPUnit_Framework_TestCase
             'basePath' => __DIR__,
             'vendorPath' => $this->getVendorPath(),
             'components' => [
-                'redis' => [
-                    'class' => 'yii\redis\Connection',
-                    'hostname' => '172.16.20.121',
-                    'port' => 6379,
-                    'database' => 2,
-                ],
+                'redis' => require(dirname(__DIR__).'/config/redis.php'),
             ]
         ], $config));
     }
