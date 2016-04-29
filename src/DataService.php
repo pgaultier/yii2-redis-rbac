@@ -781,7 +781,7 @@ class DataService extends Object
         if (empty($userId) === true) {
             return false;
         }
-        $roleGuids = $this->db->executeCommand('ZRANGEBYSCORE', [$this->getUserAssignmentsKey($userId), '-inf', '+ing']);
+        $roleGuids = $this->db->executeCommand('ZRANGEBYSCORE', [$this->getUserAssignmentsKey($userId), '-inf', '+inf']);
         $this->db->executeCommand('MULTI');
         if (count($roleGuids) > 0) {
             foreach ($roleGuids as $roleGuid) {
@@ -967,6 +967,38 @@ class DataService extends Object
             $typedChildrenGuid = array_merge($typedChildrenGuid, $subTypedChildrenGuid);
         }
         return [$childrenGuid, $typedChildrenGuid];
+    }
+
+    /**
+     * Returns all role assignment information for the specified user.
+     * @param string|integer $userId the user ID (see [[\yii\web\User::id]])
+     * @return Assignment[] the assignments indexed by role names. An empty array will be
+     * returned if there is no role assigned to the user.
+     */
+    public function getAssignments($userId)
+    {
+
+        $roleGuids = $this->db->executeCommand('ZRANGEBYSCORE', [$this->getUserAssignmentsKey($userId), '-inf', '+inf', 'WITHSCORES']);
+        $assignments = [];
+        if (count($roleGuids) > 0) {
+            $guids = [];
+            $dates = [];
+            for($i=0; $i < count($roleGuids); $i = $i+2) {
+                $guids[] = $roleGuids[$i];
+                $dates[] = $roleGuids[($i + 1)];
+            }
+            array_unshift($guids, $this->getItemMappingGuidKey());
+            $names = $this->db->executeCommand('HMGET', $guids);
+            foreach ($names as $i => $name) {
+                $assignments[$name] = new Assignment([
+                    'userId' => $userId,
+                    'roleName' => $name,
+                    'createdAt' => $dates[$i],
+                ]);
+            }
+        }
+
+        return $assignments;
     }
 
     /**

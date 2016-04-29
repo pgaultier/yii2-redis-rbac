@@ -19,6 +19,7 @@ use sweelix\rbac\redis\DuplicateKeyException;
 use yii\base\InvalidCallException;
 use yii\base\InvalidParamException;
 use yii\base\NotSupportedException;
+use yii\rbac\Assignment;
 use yii\rbac\Item;
 use yii\rbac\Permission;
 use yii\rbac\Role;
@@ -757,6 +758,16 @@ class DataServiceTest extends TestCase
         $this->assertArrayNotHasKey('permission3', $children);
         $this->assertArrayHasKey('permission4', $children);
         $this->assertArrayHasKey('permission5', $children);
+
+        $assignments = $this->getDataService()->getAssignments('testuser3');
+        $this->assertTrue(count($assignments) === 2);
+        $this->assertArrayHasKey('other', $assignments);
+        $this->assertInstanceOf(Assignment::className(), $assignments['other']);
+        $this->assertArrayHasKey('admin', $assignments);
+        $this->assertInstanceOf(Assignment::className(), $assignments['admin']);
+
+        $assignments = $this->getDataService()->getAssignments('testuser4');
+        $this->assertTrue(count($assignments) === 0);
 
     }
 }
