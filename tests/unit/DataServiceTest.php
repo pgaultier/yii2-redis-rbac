@@ -703,6 +703,8 @@ class DataServiceTest extends TestCase
 
         $this->getDataService()->assign($role2, 'testuser2');
 
+        $this->getDataService()->assign($role, 'testuser3');
+        $this->getDataService()->assign($role2, 'testuser3');
 
         $result = $this->getDataService()->addChild($permission1, $permission2);
         $this->assertTrue($result);
@@ -735,6 +737,26 @@ class DataServiceTest extends TestCase
         $this->assertArrayHasKey('permission4', $children);
         $this->assertArrayHasKey('permission5', $children);
 
+        $children = $this->getDataService()->getPermissionsByUser('testuser3');
+        $this->assertArrayHasKey('permission1', $children);
+        $this->assertArrayHasKey('permission2', $children);
+        $this->assertArrayHasKey('permission3', $children);
+        $this->assertArrayHasKey('permission4', $children);
+        $this->assertArrayHasKey('permission5', $children);
+
+        $children = $this->getDataService()->getPermissionsByRole('admin');
+        $this->assertArrayHasKey('permission1', $children);
+        $this->assertArrayHasKey('permission2', $children);
+        $this->assertArrayHasKey('permission3', $children);
+        $this->assertArrayNotHasKey('permission4', $children);
+        $this->assertArrayNotHasKey('permission5', $children);
+
+        $children = $this->getDataService()->getPermissionsByRole('other');
+        $this->assertArrayNotHasKey('permission1', $children);
+        $this->assertArrayNotHasKey('permission2', $children);
+        $this->assertArrayNotHasKey('permission3', $children);
+        $this->assertArrayHasKey('permission4', $children);
+        $this->assertArrayHasKey('permission5', $children);
 
     }
 }

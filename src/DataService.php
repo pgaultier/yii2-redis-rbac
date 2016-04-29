@@ -940,6 +940,23 @@ class DataService extends Object
         return $permissions;
     }
 
+    /**
+     * Returns all permissions that the specified role represents.
+     * @param string $roleName the role name
+     * @return Permission[] all permissions that the role represents. The array is indexed by the permission names.
+     */
+    public function getPermissionsByRole($roleName)
+    {
+        $roleGuid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $roleName]);
+        $permissions = [];
+        list(, $permissionsGuid) = $this->getChildrenRecursiveGuid($roleGuid, Item::TYPE_PERMISSION);
+        foreach($permissionsGuid as $permissionGuid) {
+            $item = $this->getItemByGuid($permissionGuid);
+            $permissions[$item->name] = $item;
+        }
+        return $permissions;
+    }
+
     protected function getChildrenRecursiveGuid($itemGuid, $type)
     {
         $childrenGuid = $this->db->executeCommand('SMEMBERS', [$this->getItemChildrenKey($itemGuid)]);
