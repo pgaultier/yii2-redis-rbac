@@ -60,6 +60,11 @@ class DataService extends Object
     /**
      * @var string
      */
+    public $globalMatchKey = 'auth:*';
+
+    /**
+     * @var string
+     */
     public $userAssignmentsKey = 'auth:users:{id}:assignments';
 
     /**
@@ -320,11 +325,16 @@ class DataService extends Object
     {
         $rule = null;
         $guid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $name]);
-        if ($guid !== null)
-        {
-            $data = $this->db->executeCommand('HGET', [$this->getRuleKey($guid), 'data']);
-            $rule = unserialize($data);
+        if ($guid !== null) {
+            $rule = $this->getRuleGuid($guid);
         }
+        return $rule;
+    }
+
+    protected function getRuleGuid($guid)
+    {
+        $data = $this->db->executeCommand('HGET', [$this->getRuleKey($guid), 'data']);
+        $rule = unserialize($data);
         return $rule;
     }
 
@@ -440,22 +450,30 @@ class DataService extends Object
         $guid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $name]);
         if ($guid !== null)
         {
-            $data = $this->db->executeCommand('HGETALL', [$this->getItemKey($guid)]);
-            $dataRow = ['name' => $name];
-            for ($i = 0; $i < count($data); $i = $i + 2) {
-                $dataRow[$data[$i]] = $data[($i + 1)];
-            }
-            if (isset($dataRow['ruleGuid']) === true) {
-                $ruleName = $this->db->executeCommand('HGET', [$this->getRuleMappingGuidKey(), $dataRow['ruleGuid']]);
-                if ($ruleName !== null) {
-                    $dataRow['ruleName'] = $ruleName;
-                }
-                unset($dataRow['ruleGuid']);
-            }
-            $item = $this->populateItem($dataRow);
+            $item = $this->getItemByGuid($guid, $name);
         }
         return $item;
+    }
 
+    protected function getItemByGuid($guid, $name = null)
+    {
+        if ($name === null) {
+            $name = $this->db->executeCommand('HGET', [$this->getItemMappingGuidKey(), $guid]);
+        }
+        $data = $this->db->executeCommand('HGETALL', [$this->getItemKey($guid)]);
+        $dataRow = ['name' => $name];
+        for ($i = 0; $i < count($data); $i = $i + 2) {
+            $dataRow[$data[$i]] = $data[($i + 1)];
+        }
+        if (isset($dataRow['ruleGuid']) === true) {
+            $ruleName = $this->db->executeCommand('HGET', [$this->getRuleMappingGuidKey(), $dataRow['ruleGuid']]);
+            if ($ruleName !== null) {
+                $dataRow['ruleName'] = $ruleName;
+            }
+            unset($dataRow['ruleGuid']);
+        }
+        $item = $this->populateItem($dataRow);
+        return $item;
     }
 
     /**
@@ -573,11 +591,10 @@ class DataService extends Object
     public function getItems($type)
     {
         $itemGuids = $this->db->executeCommand('SMEMBERS', [$this->getTypeItemsKey($type)]);
-        array_unshift($itemGuids, $this->getItemMappingGuidKey());
-        $itemNames = $this->db->executeCommand('HMGET', $itemGuids);
         $items = [];
-        foreach($itemNames as $itemName) {
-            $items[$itemName] = $this->getItem($itemName);
+        foreach($itemGuids as $itemGuid) {
+            $item = $this->getItemByGuid($itemGuid);
+            $items[$item->name] = $item;
         }
         return $items;
     }
@@ -617,13 +634,16 @@ class DataService extends Object
     public function getChildren($name)
     {
         $guid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $name]);
+        return $this->getChildrenByGuid($guid);
+    }
+
+    protected function getChildrenByGuid($guid)
+    {
         $childrenGuids = $this->db->executeCommand('SMEMBERS', [$this->getItemChildrenKey($guid)]);
         $children = [];
         if (count($childrenGuids) > 0) {
-            array_unshift($childrenGuids, $this->getItemMappingGuidKey());
-            $childrenNames = $this->db->executeCommand('HMGET', $childrenGuids);
-            foreach($childrenNames as $childName) {
-                $children[] = $this->getItem($childName);
+            foreach($childrenGuids as $childGuid) {
+                $children[] = $this->getItemByGuid($childGuid);
             }
         }
         return $children;
@@ -709,6 +729,12 @@ class DataService extends Object
         return false;
     }
 
+    /**
+     * @param Item $role
+     * @param string|integer $userId
+     * @return Assignment
+     * @since XXX
+     */
     public function assign(Item $role, $userId)
     {
         $assignment = new Assignment([
@@ -725,6 +751,12 @@ class DataService extends Object
         return $assignment;
     }
 
+    /**
+     * @param Item $role
+     * @param string|integer $userId
+     * @return bool
+     * @since XXX
+     */
     public function revoke(Item $role, $userId)
     {
         if (empty($userId) === true) {
@@ -739,6 +771,11 @@ class DataService extends Object
         return true;
     }
 
+    /**
+     * @param string|integer $userId
+     * @return bool
+     * @since XXX
+     */
     public function revokeAll($userId)
     {
         if (empty($userId) === true) {
@@ -756,25 +793,43 @@ class DataService extends Object
         return true;
     }
 
+    /**
+     * @since XXX
+     */
     public function removeAll()
     {
-        //TODO: KEYS is a performance killer. shoulb be replaced with some scan
-        $keys = Yii::$app->redis->executeCommand('KEYS', ['auth:*']);
-        if (count($keys) > 0) {
-            Yii::$app->redis->executeCommand('DEL', $keys);
+        $authKeys = [];
+        $nextCursor = 0;
+        do {
+            list($nextCursor, $keys) = $this->db->executeCommand('SCAN', [$nextCursor, 'MATCH', $this->globalMatchKey]);
+            $authKeys = array_merge($authKeys, $keys);
+
+        } while($nextCursor != 0);
+
+        if (count($authKeys) > 0) {
+            Yii::$app->redis->executeCommand('DEL', $authKeys);
         }
     }
 
+    /**
+     * @since XXX
+     */
     public function removeAllPermissions()
     {
         $this->removeAllItems(Item::TYPE_PERMISSION);
     }
 
+    /**
+     * @since XXX
+     */
     public function removeAllRoles()
     {
         $this->removeAllItems(Item::TYPE_ROLE);
     }
 
+    /**
+     * @since XXX
+     */
     public function removeAllRules()
     {
         $rules = $this->getRules();
@@ -783,6 +838,9 @@ class DataService extends Object
         }
     }
 
+    /**
+     * @since XXX
+     */
     public function removeAllAssignments()
     {
         $roleAssignKey = $this->getRoleAssignmentsKey('*');
@@ -808,6 +866,10 @@ class DataService extends Object
         }
     }
 
+    /**
+     * @param integer $type
+     * @since XXX
+     */
     public function removeAllItems($type)
     {
         $items = $this->getItems($type);
@@ -824,15 +886,12 @@ class DataService extends Object
         if (!isset($userId) || $userId === '') {
             return [];
         }
-
         $roleGuids = $this->db->executeCommand('ZRANGEBYSCORE', [$this->getUserAssignmentsKey($userId), '-inf', '+inf']);
-
         $roles = [];
         if (count($roleGuids) > 0) {
-            array_unshift($roleGuids, $this->getItemMappingGuidKey());
-            $roleNames = $this->db->executeCommand ('HMGET', $roleGuids);
-            foreach ($roleNames as $roleName) {
-                $roles[$roleName] = $this->getItem($roleName);
+            foreach ($roleGuids as $roleGuid) {
+                $item = $this->getItemByGuid($roleGuid);
+                $roles[$item->name] = $item;
             }
         }
 
@@ -840,10 +899,9 @@ class DataService extends Object
     }
 
     /**
-     * Returns all role assignment information for the specified role.
+     * Returns all user IDs assigned to the role specified.
      * @param string $roleName
-     * @return Assignment[] the assignments. An empty array will be
-     * returned if role is not assigned to any user.
+     * @return array array of user ID strings
      * @since 2.0.7
      */
     public function getUserIdsByRole($roleName)
@@ -859,8 +917,40 @@ class DataService extends Object
         return $userIds;
     }
 
+    /**
+     * Returns all permissions that the user has.
+     * @param string|integer $userId the user ID (see [[\yii\web\User::id]])
+     * @return Permission[] all permissions that the user has. The array is indexed by the permission names.
+     */
+    public function getPermissionsByUser($userId)
+    {
+        $rolesGuids = $this->db->executeCommand('ZRANGEBYSCORE', [$this->getUserAssignmentsKey($userId), '-inf', '+inf']);
+        $permissions = [];
+        if (count($rolesGuids) > 0) {
+            $permissionsGuid = [];
+            foreach ($rolesGuids as $roleGuid) {
+                list(, $permGuids) = $this->getChildrenRecursiveGuid($roleGuid, Item::TYPE_PERMISSION);
+                $permissionsGuid = array_merge($permissionsGuid, $permGuids);
+            }
+            foreach($permissionsGuid as $permissionGuid) {
+                $item = $this->getItemByGuid($permissionGuid);
+                $permissions[$item->name] = $item;
+            }
+        }
+        return $permissions;
+    }
 
-
+    protected function getChildrenRecursiveGuid($itemGuid, $type)
+    {
+        $childrenGuid = $this->db->executeCommand('SMEMBERS', [$this->getItemChildrenKey($itemGuid)]);
+        $typedChildrenGuid = $this->db->executeCommand('SINTER', [$this->getItemChildrenKey($itemGuid), $this->getTypeItemsKey($type)]);
+        foreach($childrenGuid as $childGuid) {
+            list($subChildrenGuid, $subTypedChildrenGuid) = $this->getChildrenRecursiveGuid($childGuid, $type);
+            $childrenGuid = array_merge($childrenGuid, $subChildrenGuid);
+            $typedChildrenGuid = array_merge($typedChildrenGuid, $subTypedChildrenGuid);
+        }
+        return [$childrenGuid, $typedChildrenGuid];
+    }
 
     /**
      * @param array $dataRow

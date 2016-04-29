@@ -600,7 +600,7 @@ class DataServiceTest extends TestCase
         $this->getDataService()->assign($role, 'testuser');
     }
 
-    public function testRol()
+    public function testRemoveAssignments()
     {
         $permission1 = new Permission();
         $permission1->name = 'permission1';
@@ -657,5 +657,84 @@ class DataServiceTest extends TestCase
         $data = $this->getDataService()->removeAllAssignments();
         $roles = $this->getDataService()->getRolesByUser('testuser');
         $this->assertTrue(count($roles) === 0);
+    }
+
+    public function testGetChildren()
+    {
+        $permission1 = new Permission();
+        $permission1->name = 'permission1';
+        $result = $this->getDataService()->addItem($permission1);
+        $this->assertTrue($result);
+
+        $permission2 = new Permission();
+        $permission2->name = 'permission2';
+        $result = $this->getDataService()->addItem($permission2);
+        $this->assertTrue($result);
+
+        $permission3 = new Permission();
+        $permission3->name = 'permission3';
+        $result = $this->getDataService()->addItem($permission3);
+        $this->assertTrue($result);
+
+
+        $permission4 = new Permission();
+        $permission4->name = 'permission4';
+        $result = $this->getDataService()->addItem($permission4);
+        $this->assertTrue($result);
+
+
+        $permission5 = new Permission();
+        $permission5->name = 'permission5';
+        $result = $this->getDataService()->addItem($permission5);
+        $this->assertTrue($result);
+
+
+        $role = new Role();
+        $role->name = 'admin';
+        $result = $this->getDataService()->addItem($role);
+        $this->assertTrue($result);
+
+        $role2 = new Role();
+        $role2->name = 'other';
+        $result = $this->getDataService()->addItem($role2);
+        $this->assertTrue($result);
+
+        $this->getDataService()->assign($role, 'testuser');
+
+        $this->getDataService()->assign($role2, 'testuser2');
+
+
+        $result = $this->getDataService()->addChild($permission1, $permission2);
+        $this->assertTrue($result);
+
+        $result = $this->getDataService()->addChild($permission2, $permission3);
+        $this->assertTrue($result);
+
+        $result = $this->getDataService()->addChild($role, $permission1);
+        $this->assertTrue($result);
+
+
+        $result = $this->getDataService()->addChild($role2, $permission4);
+        $this->assertTrue($result);
+        $result = $this->getDataService()->addChild($role2, $permission5);
+        $this->assertTrue($result);
+
+
+
+        $children = $this->getDataService()->getPermissionsByUser('testuser');
+        $this->assertArrayHasKey('permission1', $children);
+        $this->assertArrayHasKey('permission2', $children);
+        $this->assertArrayHasKey('permission3', $children);
+        $this->assertArrayNotHasKey('permission4', $children);
+        $this->assertArrayNotHasKey('permission5', $children);
+
+        $children = $this->getDataService()->getPermissionsByUser('testuser2');
+        $this->assertArrayNotHasKey('permission1', $children);
+        $this->assertArrayNotHasKey('permission2', $children);
+        $this->assertArrayNotHasKey('permission3', $children);
+        $this->assertArrayHasKey('permission4', $children);
+        $this->assertArrayHasKey('permission5', $children);
+
+
     }
 }
