@@ -267,4 +267,11 @@ class Manager extends BaseManager
         return $this->dataService->getPermissionsByRole($roleName);
     }
 
+    /**
+     * @inheritdoc
+     */
+    public function getAssignments($userId)
+    {
+        return $this->dataService->getAssignments($userId);
+    }
 }
