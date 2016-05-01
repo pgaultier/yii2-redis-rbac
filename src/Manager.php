@@ -16,6 +16,8 @@ namespace sweelix\rbac\redis;
 
 use Yii;
 use yii\rbac\BaseManager;
+use yii\rbac\Role;
+use yii\rbac\Item;
 use yii\redis\Connection;
 
 /**
@@ -273,5 +275,45 @@ class Manager extends BaseManager
     public function getAssignments($userId)
     {
         return $this->dataService->getAssignments($userId);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getAssignment($roleName, $userId)
+    {
+        return $this->dataService->getAssignment($roleName, $userId);
+    }
+
+    public function checkAccess($userId, $permissionName, $params = [])
+    {
+        $assignments = $this->getAssignments($userId);
+        return $this->checkAccessRecursive($userId, $permissionName, $params, $assignments);
+    }
+
+    public function canAddChild(Item $parent, Item $child)
+    {
+        return $this->dataService->canAddChild($parent, $child);
+    }
+
+    protected function checkAccessRecursive($user, $itemName, $params, $assignments)
+    {
+        if (($item = $this->getItem($itemName)) === null) {
+            return false;
+        }
+        Yii::trace($item instanceof Role ? "Checking role: $itemName" : "Checking permission: $itemName", __METHOD__);
+        if (!$this->executeRule($user, $item, $params)) {
+            return false;
+        }
+        if (isset($assignments[$itemName]) || in_array($itemName, $this->defaultRoles)) {
+            return true;
+        }
+        $parents = $this->dataService->getParents($itemName);
+        foreach ($parents as $parent) {
+            if ($this->checkAccessRecursive($user, $parent, $params, $assignments)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

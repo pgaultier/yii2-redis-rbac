@@ -327,6 +327,10 @@ class DataService extends Object
         $guid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $name]);
         if ($guid !== null) {
             $rule = $this->getRuleGuid($guid);
+        } elseif(class_exists($name) === true) {
+            $rule = new $name;
+        } elseif(Yii::$container->has($name) === true) {
+            $rule = Yii::$container->get($name);
         }
         return $rule;
     }
@@ -406,8 +410,14 @@ class DataService extends Object
             $item->updatedAt = $time;
         }
         $ruleGuid = null;
+        $ruleClass = null;
         if (empty($item->ruleName) === false) {
             $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
+            if (($ruleGuid === null) && class_exists($item->ruleName)) {
+                $ruleClass = $item->ruleName;
+            } elseif(($ruleGuid === null) && (Yii::$container->has($item->ruleName))) {
+                $ruleClass = $item->ruleName;
+            }
         }
 
         $this->db->executeCommand('MULTI');
@@ -428,6 +438,11 @@ class DataService extends Object
             $insertItem[] = 'ruleGuid';
             $insertItem[] = $ruleGuid;
         }
+        if ($ruleClass !== null) {
+            $insertItem[] = 'ruleClass';
+            $insertItem[] = $ruleClass;
+        }
+
         // insert item
         $this->db->executeCommand('HMSET', $insertItem);
         $this->db->executeCommand('SADD', [$this->getTypeItemsKey($item->type), $guid]);
@@ -471,6 +486,9 @@ class DataService extends Object
                 $dataRow['ruleName'] = $ruleName;
             }
             unset($dataRow['ruleGuid']);
+        } elseif(isset($dataRow['ruleClass']) === true) {
+            $dataRow['ruleName'] = $dataRow['ruleClass'];
+            unset($dataRow['ruleClass']);
         }
         $item = $this->populateItem($dataRow);
         return $item;
@@ -524,10 +542,20 @@ class DataService extends Object
 
         $guid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $name]);
         $ruleGuid = null;
+        $ruleClass = null;
         if (empty($item->ruleName) === false) {
             $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
+            if (($ruleGuid === null) && class_exists($item->ruleName)) {
+                $ruleClass = $item->ruleName;
+            } elseif(($ruleGuid === null) && (Yii::$container->has($item->ruleName))) {
+                $ruleClass = $item->ruleName;
+            }
         }
-        list($currentRuleGuid, $currentType) = $this->db->executeCommand('HMGET', [$this->getItemKey($guid), 'ruleGuid', 'type']);
+        $newRule = ($ruleGuid === null) ? $ruleClass : $ruleGuid;
+
+        list($currentRuleGuid, $currentRuleClass, $currentType) = $this->db->executeCommand('HMGET', [$this->getItemKey($guid), 'ruleGuid', 'ruleClass', 'type']);
+
+        $oldRule = ($currentRuleGuid === null) ? $currentRuleClass : $currentRuleGuid;
 
         $this->db->executeCommand('MULTI');
         if ($name !== $item->name) {
@@ -551,7 +579,7 @@ class DataService extends Object
         } else {
             $updateEmptyItem[] = 'description';
         }
-        if ($ruleGuid !== $currentRuleGuid) {
+        if ($newRule !== $oldRule) {
             if ($currentRuleGuid !== null) {
                 $this->db->executeCommand('SREM', [$this->getRuleItemsKey($currentRuleGuid), $guid]);
             }
@@ -563,6 +591,12 @@ class DataService extends Object
                 $updateItem[] = $ruleGuid;
             } else {
                 $updateEmptyItem[] = 'ruleGuid';
+            }
+            if ($ruleClass !== null) {
+                $updateItem[] = 'ruleClass';
+                $updateItem[] = $ruleClass;
+            } else {
+                $updateEmptyItem[] = 'ruleClass';
             }
         }
         if ($item->type !== $currentType) {
@@ -807,7 +841,7 @@ class DataService extends Object
         } while($nextCursor != 0);
 
         if (count($authKeys) > 0) {
-            Yii::$app->redis->executeCommand('DEL', $authKeys);
+            $this->db->executeCommand('DEL', $authKeys);
         }
     }
 
@@ -890,8 +924,11 @@ class DataService extends Object
         $roles = [];
         if (count($roleGuids) > 0) {
             foreach ($roleGuids as $roleGuid) {
-                $item = $this->getItemByGuid($roleGuid);
-                $roles[$item->name] = $item;
+                $isRole = (int)$this->db->executeCommand('SISMEMBER', [$this->getTypeItemsKey(Item::TYPE_ROLE), $roleGuid]);
+                if ($isRole === 1) {
+                    $item = $this->getItemByGuid($roleGuid);
+                    $roles[$item->name] = $item;
+                }
             }
         }
 
@@ -928,6 +965,12 @@ class DataService extends Object
         $permissions = [];
         if (count($rolesGuids) > 0) {
             $permissionsGuid = [];
+            foreach($rolesGuids as $roleGuid) {
+                $isPerm = (int)$this->db->executeCommand('SISMEMBER', [$this->getTypeItemsKey(Item::TYPE_PERMISSION), $roleGuid]);
+                if ($isPerm === 1) {
+                    $permissionsGuid[] = $roleGuid;
+                }
+            }
             foreach ($rolesGuids as $roleGuid) {
                 list(, $permGuids) = $this->getChildrenRecursiveGuid($roleGuid, Item::TYPE_PERMISSION);
                 $permissionsGuid = array_merge($permissionsGuid, $permGuids);
@@ -969,6 +1012,23 @@ class DataService extends Object
         return [$childrenGuid, $typedChildrenGuid];
     }
 
+    public function getParents($itemName)
+    {
+        $itemGuid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $itemName]);
+        return $this->getParentsGuid($itemGuid);
+    }
+
+    protected function getParentsGuid($itemGuid)
+    {
+        $parentsGuid = $this->db->executeCommand('SMEMBERS', [$this->getItemParentsKey($itemGuid)]);
+        $parents = [];
+        if (count($parentsGuid) > 0) {
+            array_unshift($parentsGuid, $this->getItemMappingGuidKey());
+            $parents = $this->db->executeCommand('HMGET', $parentsGuid);
+        }
+        return $parents;
+    }
+
     /**
      * Returns all role assignment information for the specified user.
      * @param string|integer $userId the user ID (see [[\yii\web\User::id]])
@@ -1000,6 +1060,26 @@ class DataService extends Object
 
         return $assignments;
     }
+
+    public function getAssignment($roleName, $userId)
+    {
+        $roleGuid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $roleName]);
+        $assignment = null;
+        if ($roleGuid !== null) {
+            $assignmentScore = $this->db->executeCommand('ZSCORE', [$this->getUserAssignmentsKey($userId), $roleGuid]);
+            if ($assignmentScore !== null) {
+                $assignment = new Assignment([
+                    'userId' => $userId,
+                    'roleName' => $roleName,
+                    'createdAt' => $assignmentScore,
+                ]);
+            }
+        }
+        return $assignment;
+
+
+    }
+
 
     /**
      * @param array $dataRow
