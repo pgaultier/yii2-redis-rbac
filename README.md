@@ -39,6 +39,7 @@ return [
     'components' => [
         'authManager' => [
             'class' => 'sweelix\rbac\redis\Manager',
+            'db' => 'redis',
         ],
         // ...
     ],
