@@ -37,50 +37,22 @@ Add extension to your configuration
 return [
     //....
     'components' => [
-        'mailer' => [
-            'class' => 'sweelix\postmark\Mailer',
-            'token' => '<your postmark token>',
+        'authManager' => [
+            'class' => 'sweelix\rbac\redis\Manager',
         ],
+        // ...
     ],
 ];
 ```
 
-You can send email as follow (using postmark templates)
 
-``` php
-Yii::$app->mailer->compose('contact/html')
-     ->setFrom('from@domain.com')
-     ->setTo($form->email)
-     ->setSubject($form->subject)
-     ->setTemplateId(12345)
-     ->setTemplateModel([
-         'firstname' => $form->firstname,
-         'lastname' => $form->lastname,
-     ->send();
-
-```
-
-For further instructions refer to the [related section in the Yii Definitive Guide](http://www.yiiframework.com/doc-2.0/guide-tutorial-mailing.html)
+For further instructions refer to the [related section in the Yii Definitive Guide](http://www.yiiframework.com/doc-2.0/guide-security-authorization.html)
 
 
 Running the tests
 -----------------
 
-Before running the tests, you should edit the file tests/_bootstrap.php and change the defines :
-
-``` php
-// ...
-define('POSTMARK_FROM', '<sender>');
-define('POSTMARK_TOKEN', '<token>');
-define('POSTMARK_TO', '<target>');
-define('POSTMARK_TEMPLATE', 575741);
-
-define('POSTMARK_TEST_SEND', false);
-// ...
-
-```
-
-to match your [PostmarkApp](https://postmarkapp.com) configuration.
+Before running the tests, you should edit the file tests/config/redis.php and change the config to match your environment.
 
 Contributing
 ------------
