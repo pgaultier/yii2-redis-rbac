@@ -351,27 +351,19 @@ class Manager extends BaseManager
             'updatedAt', $item->updatedAt
         ];
         $ruleGuid = null;
-        $ruleClass = null;
-        if (empty($item->ruleName) === false) {
-            $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
-            if (($ruleGuid === null) && class_exists($item->ruleName)) {
-                $ruleClass = $item->ruleName;
-            } elseif(($ruleGuid === null) && (Yii::$container->has($item->ruleName))) {
-                $ruleClass = $item->ruleName;
-            }
+        $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
+
+        if ($ruleGuid !== null) {
+            $insertItem[] = 'ruleGuid';
+            $insertItem[] = $ruleGuid;
+        } elseif (class_exists($item->ruleName) || Yii::$container->has($item->ruleName)) {
+            $insertItem[] = 'ruleClass';
+            $insertItem[] = $item->ruleName;
         }
 
         if ($item->description !== null) {
             $insertItem[] = 'description';
             $insertItem[] = $item->description;
-        }
-        if ($ruleGuid !== null) {
-            $insertItem[] = 'ruleGuid';
-            $insertItem[] = $ruleGuid;
-        }
-        if ($ruleClass !== null) {
-            $insertItem[] = 'ruleClass';
-            $insertItem[] = $ruleClass;
         }
         return $insertItem;
     }
