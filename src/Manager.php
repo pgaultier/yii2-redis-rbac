@@ -383,16 +383,16 @@ class Manager extends BaseManager
 
         $guid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $name]);
 
-        $ruleGuid = null;
         $ruleClass = null;
         $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
+        $newRule = $ruleGuid;
         if (($ruleGuid === null) && (class_exists($item->ruleName) || Yii::$container->has($item->ruleName))) {
             $ruleClass = $item->ruleName;
+            $newRule = $ruleClass;
         }
 
         list($currentRuleGuid, $currentRuleClass, $currentType) = $this->db->executeCommand('HMGET', [$this->getItemKey($guid), 'ruleGuid', 'ruleClass', 'type']);
 
-        $newRule = ($ruleGuid === null) ? $ruleClass : $ruleGuid;
         $oldRule = ($currentRuleGuid === null) ? $currentRuleClass : $currentRuleGuid;
         $isUpdated = $newRule !== $oldRule;
 
@@ -1002,7 +1002,7 @@ class Manager extends BaseManager
             $guids = [];
             $dates = [];
             $nbRolesGuids = count($roleGuids);
-            for($i=0; $i < $nbRolesGuids; $i = $i+2) {
+            for($i=0; $i < $nbRolesGuids; $i = $i + 2) {
                 $guids[] = $roleGuids[$i];
                 $dates[] = $roleGuids[($i + 1)];
             }
