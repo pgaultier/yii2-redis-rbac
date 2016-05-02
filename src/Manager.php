@@ -245,8 +245,7 @@ class Manager extends BaseManager
     {
         $item = null;
         $guid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $name]);
-        if ($guid !== null)
-        {
+        if ($guid !== null) {
             $item = $this->getItemByGuid($guid, $name);
         }
         return $item;
@@ -399,11 +398,7 @@ class Manager extends BaseManager
 
         $this->db->executeCommand('MULTI');
         if ($name !== $item->name) {
-            // delete old mapping
-            $this->db->executeCommand('HDEL', [$this->getItemMappingKey(), $name]);
-            // add new mapping
-            $this->db->executeCommand('HSET', [$this->getItemMappingKey(), $item->name, $guid]);
-            $this->db->executeCommand('HSET', [$this->getItemMappingGuidKey(), $guid, $item->name]);
+            $this->remap($name, $item->name, $guid, false);
         }
 
         list($updateItem, $updateEmptyItem) = $this->prepareRedisItem($item, $guid);
@@ -433,11 +428,34 @@ class Manager extends BaseManager
     }
 
     /**
+     * @param string $oldName old mapping name
+     * @param string $newName new mapping name
+     * @param string $guid unique ID
+     * @since XXX
+     */
+    private function remap($oldName, $newName, $guid, $isRule = false)
+    {
+        if ($isRule) {
+            $mappingKey = $this->getRuleMappingKey();
+            $mappingGuidKey = $this->getRuleMappingGuidKey();
+        } else {
+            $mappingKey = $this->getItemMappingKey();
+            $mappingGuidKey = $this->getItemMappingGuidKey();
+        }
+        $this->db->executeCommand('HDEL', [$mappingKey, $oldName]);
+        // add new mapping
+        $this->db->executeCommand('HSET', [$mappingKey, $newName, $guid]);
+        $this->db->executeCommand('HSET', [$mappingGuidKey, $guid, $newName]);
+    }
+
+    /**
      * @inheritdoc
      */
     protected function removeItem($item)
     {
-        $guid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $item->name]);
+        $mappingKey = $this->getItemMappingKey();
+
+        $guid = $this->db->executeCommand('HGET', [$mappingKey, $item->name]);
         $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
 
         $parentGuids = $this->db->executeCommand('SMEMBERS', [$this->getItemParentsKey($guid)]);
@@ -445,7 +463,7 @@ class Manager extends BaseManager
 
         $this->db->executeCommand('MULTI');
         // delete mapping
-        $this->db->executeCommand('HDEL', [$this->getItemMappingKey(), $item->name]);
+        $this->db->executeCommand('HDEL', [$mappingKey, $item->name]);
         $this->db->executeCommand('HDEL', [$this->getItemMappingGuidKey(), $guid]);
         // delete rule <-> item link
         $this->db->executeCommand('SREM', [$this->getRuleItemsKey($ruleGuid), $guid]);
@@ -513,11 +531,7 @@ class Manager extends BaseManager
 
         $this->db->executeCommand('MULTI');
         if ($name !== $rule->name) {
-            // delete old mapping
-            $this->db->executeCommand('HDEL', [$this->getRuleMappingKey(), $name]);
-            // add new mapping
-            $this->db->executeCommand('HSET', [$this->getRuleMappingKey(), $rule->name, $guid]);
-            $this->db->executeCommand('HSET', [$this->getRuleMappingGuidKey(),$guid, $rule->name]);
+            $this->remap($name, $rule->name, $guid, true);
         }
         $this->db->executeCommand('HMSET', [$this->getRuleKey($guid),
             'data', serialize($rule),
