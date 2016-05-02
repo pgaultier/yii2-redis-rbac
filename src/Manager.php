@@ -386,7 +386,7 @@ class Manager extends BaseManager
         $ruleClass = null;
         $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
         $newRule = $ruleGuid;
-        if (($ruleGuid === null) && (class_exists($item->ruleName) || Yii::$container->has($item->ruleName))) {
+        if (($ruleGuid === null) && (empty($item->ruleName) === false)) {
             $ruleClass = $item->ruleName;
             $newRule = $ruleClass;
         }
