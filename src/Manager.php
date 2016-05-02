@@ -1055,6 +1055,9 @@ class Manager extends BaseManager
         return $assignment;
     }
 
+    /**
+     * @inheritdoc
+     */
     public function checkAccess($userId, $permissionName, $params = [])
     {
         $assignments = $this->getAssignments($userId);
@@ -1073,6 +1076,15 @@ class Manager extends BaseManager
         return !$this->detectLoop($parent, $child);
     }
 
+    /**
+     * @param string|integer $user user ID
+     * @param string $itemName current item name
+     * @param array $params parameters applied in rule
+     * @param Assignment[] $assignments
+     * @return bool
+     * @since XXX
+     * @throws \yii\base\InvalidConfigException
+     */
     protected function checkAccessRecursive($user, $itemName, $params, $assignments)
     {
         if (($item = $this->getItem($itemName)) === null) {
