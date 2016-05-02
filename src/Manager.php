@@ -383,12 +383,10 @@ class Manager extends BaseManager
 
         $guid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $name]);
 
-        $ruleClass = null;
         $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
         $newRule = $ruleGuid;
         if (($ruleGuid === null) && (empty($item->ruleName) === false)) {
-            $ruleClass = $item->ruleName;
-            $newRule = $ruleClass;
+            $newRule = $item->ruleName;
         }
 
         list($currentRuleGuid, $currentRuleClass, $currentType) = $this->db->executeCommand('HMGET', [$this->getItemKey($guid), 'ruleGuid', 'ruleClass', 'type']);
