@@ -1064,7 +1064,7 @@ class Manager extends BaseManager
      * @return bool
      * @since XXX
      */
-    public function canAddChild(Item $parent, Item $child)
+    public function canAddChild($parent, $child)
     {
         return !$this->detectLoop($parent, $child);
     }
