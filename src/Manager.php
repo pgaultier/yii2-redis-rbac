@@ -376,6 +376,7 @@ class Manager extends BaseManager
         $item->updatedAt = time();
 
         $guid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $name]);
+
         $ruleGuid = null;
         $ruleClass = null;
         if (empty($item->ruleName) === false) {
