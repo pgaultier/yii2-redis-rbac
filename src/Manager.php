@@ -351,7 +351,6 @@ class Manager extends BaseManager
             'updatedAt', $item->updatedAt
         ];
 
-        $ruleGuid = null;
         $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
 
         if ($ruleGuid !== null) {
