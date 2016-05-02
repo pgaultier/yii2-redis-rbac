@@ -319,7 +319,7 @@ class Manager extends BaseManager
             $item->updatedAt = $time;
         }
 
-        $insertInRedis = $this->buildRedisItemInsert($item, $guid);
+        list($insertInRedis, ) = $this->prepareRedisItem($item, $guid);
         $this->db->executeCommand('MULTI');
         // update mapping
         $this->db->executeCommand('HSET', [$this->getItemMappingKey(), $item->name, $guid]);
@@ -342,31 +342,38 @@ class Manager extends BaseManager
      * @return array Redis command
      * @since XXX
      */
-    private function buildRedisItemInsert($item, $guid)
+    private function prepareRedisItem($item, $guid)
     {
-        $insertItem = [$this->getItemKey($guid),
+        $redisCleanItem = [$this->getItemKey($guid)];
+        $redisItem = [$this->getItemKey($guid),
             'data', serialize($item->data),
             'type', $item->type,
             'createdAt', $item->createdAt,
             'updatedAt', $item->updatedAt
         ];
+
         $ruleGuid = null;
         $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
 
         if ($ruleGuid !== null) {
-            $insertItem[] = 'ruleGuid';
-            $insertItem[] = $ruleGuid;
+            $redisItem[] = 'ruleGuid';
+            $redisItem[] = $ruleGuid;
+            $redisCleanItem[] = 'ruleClass';
         } elseif (class_exists($item->ruleName) || Yii::$container->has($item->ruleName)) {
-            $insertItem[] = 'ruleClass';
-            $insertItem[] = $item->ruleName;
+            $redisItem[] = 'ruleClass';
+            $redisItem[] = $item->ruleName;
+            $redisCleanItem[] = 'ruleGuid';
         }
 
         if ($item->description !== null) {
-            $insertItem[] = 'description';
-            $insertItem[] = $item->description;
+            $redisItem[] = 'description';
+            $redisItem[] = $item->description;
+        } else {
+            $redisCleanItem[] = 'description';
         }
-        return $insertItem;
+        return [$redisItem, $redisCleanItem];
     }
+
 
     /**
      * @inheritdoc
@@ -379,19 +386,16 @@ class Manager extends BaseManager
 
         $ruleGuid = null;
         $ruleClass = null;
-        if (empty($item->ruleName) === false) {
-            $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
-            if (($ruleGuid === null) && class_exists($item->ruleName)) {
-                $ruleClass = $item->ruleName;
-            } elseif(($ruleGuid === null) && (Yii::$container->has($item->ruleName))) {
-                $ruleClass = $item->ruleName;
-            }
+        $ruleGuid = $this->db->executeCommand('HGET', [$this->getRuleMappingKey(), $item->ruleName]);
+        if (($ruleGuid === null) && (class_exists($item->ruleName) || Yii::$container->has($item->ruleName))) {
+            $ruleClass = $item->ruleName;
         }
-        $newRule = ($ruleGuid === null) ? $ruleClass : $ruleGuid;
 
         list($currentRuleGuid, $currentRuleClass, $currentType) = $this->db->executeCommand('HMGET', [$this->getItemKey($guid), 'ruleGuid', 'ruleClass', 'type']);
 
+        $newRule = ($ruleGuid === null) ? $ruleClass : $ruleGuid;
         $oldRule = ($currentRuleGuid === null) ? $currentRuleClass : $currentRuleGuid;
+        $isUpdated = $newRule !== $oldRule;
 
         $this->db->executeCommand('MULTI');
         if ($name !== $item->name) {
@@ -402,38 +406,13 @@ class Manager extends BaseManager
             $this->db->executeCommand('HSET', [$this->getItemMappingGuidKey(), $guid, $item->name]);
         }
 
-        $updateEmptyItem = [$this->getItemKey($guid)];
-        $updateItem = [$this->getItemKey($guid),
-            'data', serialize($item->data),
-            'type', $item->type,
-            'createdAt', $item->createdAt,
-            'updatedAt', $item->updatedAt
-        ];
-        if ($item->description !== null) {
-            $updateItem[] = 'description';
-            $updateItem[] = $item->description;
-        } else {
-            $updateEmptyItem[] = 'description';
+        list($updateItem, $updateEmptyItem) = $this->prepareRedisItem($item, $guid);
+
+        if ($isUpdated && $currentRuleGuid !== null) {
+            $this->db->executeCommand('SREM', [$this->getRuleItemsKey($currentRuleGuid), $guid]);
         }
-        if ($newRule !== $oldRule) {
-            if ($currentRuleGuid !== null) {
-                $this->db->executeCommand('SREM', [$this->getRuleItemsKey($currentRuleGuid), $guid]);
-            }
-            if ($ruleGuid !== null) {
-                $this->db->executeCommand('SADD', [$this->getRuleItemsKey($ruleGuid), $guid]);
-            }
-            if ($ruleGuid !== null) {
-                $updateItem[] = 'ruleGuid';
-                $updateItem[] = $ruleGuid;
-            } else {
-                $updateEmptyItem[] = 'ruleGuid';
-            }
-            if ($ruleClass !== null) {
-                $updateItem[] = 'ruleClass';
-                $updateItem[] = $ruleClass;
-            } else {
-                $updateEmptyItem[] = 'ruleClass';
-            }
+        if ($isUpdated && $ruleGuid !== null) {
+            $this->db->executeCommand('SADD', [$this->getRuleItemsKey($ruleGuid), $guid]);
         }
         if ($item->type !== $currentType) {
             $this->db->executeCommand('SREM', [$this->getTypeItemsKey($currentType), $guid]);
