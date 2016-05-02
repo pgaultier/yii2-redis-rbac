@@ -265,7 +265,8 @@ class Manager extends BaseManager
         }
         $data = $this->db->executeCommand('HGETALL', [$this->getItemKey($guid)]);
         $dataRow = ['name' => $name];
-        for ($i = 0; $i < count($data); $i = $i + 2) {
+        $nbProps = count($data);
+        for ($i = 0; $i < $nbProps; $i = $i + 2) {
             $dataRow[$data[$i]] = $data[($i + 1)];
         }
         if (isset($dataRow['ruleGuid']) === true) {
@@ -317,6 +318,38 @@ class Manager extends BaseManager
         if ($item->updatedAt === null) {
             $item->updatedAt = $time;
         }
+
+        $insertInRedis = $this->buildRedisItemInsert($item, $guid);
+        $this->db->executeCommand('MULTI');
+        // update mapping
+        $this->db->executeCommand('HSET', [$this->getItemMappingKey(), $item->name, $guid]);
+        $this->db->executeCommand('HSET', [$this->getItemMappingGuidKey(), $guid, $item->name]);
+        // insert item
+        $this->db->executeCommand('HMSET', $insertInRedis);
+        $this->db->executeCommand('SADD', [$this->getTypeItemsKey($item->type), $guid]);
+        // affect rule
+        if (isset($insertInRedis['ruleGuid']) === true) {
+            $this->db->executeCommand('SADD', [$this->getRuleItemsKey($insertInRedis['ruleGuid']), $guid]);
+        }
+        $this->db->executeCommand('EXEC');
+        return true;
+
+    }
+
+    /**
+     * @param Item $item item to insert in DB
+     * @param string $guid guid generated
+     * @return array Redis command
+     * @since XXX
+     */
+    private function buildRedisItemInsert($item, $guid)
+    {
+        $insertItem = [$this->getItemKey($guid),
+            'data', serialize($item->data),
+            'type', $item->type,
+            'createdAt', $item->createdAt,
+            'updatedAt', $item->updatedAt
+        ];
         $ruleGuid = null;
         $ruleClass = null;
         if (empty($item->ruleName) === false) {
@@ -328,16 +361,6 @@ class Manager extends BaseManager
             }
         }
 
-        $this->db->executeCommand('MULTI');
-        // update mapping
-        $this->db->executeCommand('HSET', [$this->getItemMappingKey(), $item->name, $guid]);
-        $this->db->executeCommand('HSET', [$this->getItemMappingGuidKey(), $guid, $item->name]);
-        $insertItem = [$this->getItemKey($guid),
-            'data', serialize($item->data),
-            'type', $item->type,
-            'createdAt', $item->createdAt,
-            'updatedAt', $item->updatedAt
-        ];
         if ($item->description !== null) {
             $insertItem[] = 'description';
             $insertItem[] = $item->description;
@@ -350,17 +373,7 @@ class Manager extends BaseManager
             $insertItem[] = 'ruleClass';
             $insertItem[] = $ruleClass;
         }
-
-        // insert item
-        $this->db->executeCommand('HMSET', $insertItem);
-        $this->db->executeCommand('SADD', [$this->getTypeItemsKey($item->type), $guid]);
-        // affect rule
-        if ($ruleGuid !== null) {
-            $this->db->executeCommand('SADD', [$this->getRuleItemsKey($ruleGuid), $guid]);
-        }
-        $this->db->executeCommand('EXEC');
-        return true;
-
+        return $insertItem;
     }
 
     /**
@@ -1002,7 +1015,8 @@ class Manager extends BaseManager
         if (count($roleGuids) > 0) {
             $guids = [];
             $dates = [];
-            for($i=0; $i < count($roleGuids); $i = $i+2) {
+            $nbRolesGuids = count($roleGuids);
+            for($i=0; $i < $nbRolesGuids; $i = $i+2) {
                 $guids[] = $roleGuids[$i];
                 $dates[] = $roleGuids[($i + 1)];
             }
