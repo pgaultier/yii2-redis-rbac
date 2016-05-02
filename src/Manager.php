@@ -31,6 +31,20 @@ use yii\redis\Connection;
  * REDIS Manager represents an authorization manager that stores
  * authorization information in REDIS database
  *
+ *  database structure :
+ *   * auth:users:<userId>:assignments : ZSET (string: roleName, score: createdAt)
+ *   * auth:roles:<roleName>:assignments : ZSET (string|int: userId, score: createdAt)
+ *   * auth:rules:<ruleName> : MAP (string: ruleName, string: data, integer: createdAt, integer: updatedAt)
+ *   * auth:types:<typeId>:items : SET (string: itemName)
+ *   * auth:items:<itemName> : MAP (string: itemName, int: typeId, string: description, integer: createdAt, integer: updatedAt, string: ruleName)
+ *   * auth:rules:<ruleName>:items : SET (string: itemName)
+ *   * auth:items:<itemName>:children : SET (string: itemName)
+ *   * auth:items:<itemName>:parents : SET (string: itemName)
+ *   * auth:mappings:items : MAP (string: itemName, string: guid)
+ *   * auth:mappings:itemsguid : MAP (string: guid, string: itemName)
+ *   * auth:mappings:rules : MAP (string: ruleName, string: guid)
+ *   * auth:mappings:rulesguid : MAP (string: guid, string: ruleName)
+ *
  * @author Philippe Gaultier <pgaultier@sweelix.net>
  * @copyright 2010-2016 Philippe Gaultier
  * @license http://www.sweelix.net/license license
