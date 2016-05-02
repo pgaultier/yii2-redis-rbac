@@ -3,7 +3,10 @@
 namespace tests\unit;
 
 use sweelix\rbac\redis\DataService;
+use sweelix\rbac\redis\DuplicateKeyException;
 use sweelix\rbac\redis\Manager;
+use yii\base\InvalidCallException;
+use yii\base\InvalidParamException;
 use yii\rbac\Item;
 use yii\rbac\Permission;
 use yii\rbac\Role;
@@ -11,7 +14,7 @@ use yii\rbac\Role;
 /**
  * ManagerTestCase
  */
-class OriginalYiiRbacTest extends TestCase
+class RedisManagerTest extends TestCase
 {
     /**
      * @var \yii\rbac\ManagerInterface
@@ -22,17 +25,14 @@ class OriginalYiiRbacTest extends TestCase
      */
     protected function createManager()
     {
-        return new Manager([]);
+        return new Manager([
+            'db' => 'redis'
+        ]);
     }
     protected function setUp()
     {
         parent::setUp();
         $this->mockApplication([
-            'components' => [
-                'dataService' => [
-                    'class' => DataService::className(),
-                ]
-            ]
         ]);
 
         $this->auth = $this->createManager();
@@ -67,8 +67,61 @@ class OriginalYiiRbacTest extends TestCase
         $this->assertTrue($this->auth->add($permission));
         $rule = new AuthorRule(['name' => 'is author', 'reallyReally' => true]);
         $this->assertTrue($this->auth->add($rule));
+        $rule = new AuthorRule(['name' => 'is author', 'reallyReally' => true]);
+        $this->expectException(DuplicateKeyException::class);
+        $this->auth->add($rule);
+
         // todo: check duplication of name
     }
+
+    public function testAddPermission()
+    {
+        $role = $this->auth->createRole('admin');
+        $role->description = 'administrator';
+        $this->assertTrue($this->auth->add($role));
+        $permission = $this->auth->createPermission('edit post');
+        $permission->description = 'edit a post';
+        $this->assertTrue($this->auth->add($permission));
+        $permission = $this->auth->createPermission('edit post');
+        $permission->description = 'edit a post';
+        $this->expectException(DuplicateKeyException::class);
+        $this->auth->add($permission);
+    }
+
+    public function testAddNoname()
+    {
+        $role = $this->auth->createRole('admin');
+        $role->description = 'administrator';
+        $this->assertTrue($this->auth->add($role));
+        $permission = $this->auth->createPermission('edit post');
+        $permission->description = 'edit a post';
+        $this->assertTrue($this->auth->add($permission));
+        $rule = new AuthorRule(['name' => 'is author', 'reallyReally' => true]);
+        $this->assertTrue($this->auth->add($rule));
+        $rule = new AuthorRule(['reallyReally' => true]);
+        $rule->name = null;
+        $this->expectException(InvalidParamException::class);
+        $this->auth->add($rule);
+
+        // todo: check duplication of name
+    }
+
+    public function testAddPermissionNoname()
+    {
+        $role = $this->auth->createRole('admin');
+        $role->description = 'administrator';
+        $this->assertTrue($this->auth->add($role));
+        $permission = $this->auth->createPermission('edit post');
+        $permission->description = 'edit a post';
+        $this->assertTrue($this->auth->add($permission));
+        $permission = $this->auth->createPermission('edit post');
+        $permission->description = 'edit a post';
+        $permission->name = null;
+        $this->expectException(InvalidParamException::class);
+        $this->auth->add($permission);
+    }
+
+
     public function testGetChildren()
     {
         $user = $this->auth->createRole('user');
@@ -78,7 +131,90 @@ class OriginalYiiRbacTest extends TestCase
         $this->auth->add($changeName);
         $this->auth->addChild($user, $changeName);
         $this->assertCount(1, $this->auth->getChildren($user->name));
+        $this->assertTrue($this->auth->hasChild($user, $changeName));
+
+        $updateName = $this->auth->createPermission('updateName');
+        $this->auth->add($updateName);
+
+        $this->expectException(InvalidParamException::class);
+        $this->auth->addChild($updateName, $updateName);
+
     }
+
+    public function testAddingChildren()
+    {
+        $user = $this->auth->createRole('user');
+        $this->auth->add($user);
+        $this->assertCount(0, $this->auth->getChildren($user->name));
+        $changeName = $this->auth->createPermission('changeName');
+        $this->auth->add($changeName);
+        $this->auth->addChild($user, $changeName);
+        $this->assertCount(1, $this->auth->getChildren($user->name));
+        $this->assertTrue($this->auth->hasChild($user, $changeName));
+
+        $updateName = $this->auth->createPermission('updateName');
+        $this->auth->add($updateName);
+
+        $role = $this->auth->createRole('reader');
+
+        $this->expectException(InvalidParamException::class);
+        $this->auth->addChild($updateName, $role);
+    }
+
+    public function testAddingChildrenLoop()
+    {
+        $user = $this->auth->createRole('user');
+        $this->auth->add($user);
+        $this->assertCount(0, $this->auth->getChildren($user->name));
+        $changeName = $this->auth->createPermission('changeName');
+        $this->auth->add($changeName);
+        $this->auth->addChild($user, $changeName);
+        $this->assertCount(1, $this->auth->getChildren($user->name));
+        $this->assertTrue($this->auth->hasChild($user, $changeName));
+
+        $updateName = $this->auth->createPermission('updateName');
+        $this->auth->add($updateName);
+
+        $this->auth->addChild($changeName, $updateName);
+
+
+        $this->expectException(InvalidCallException::class);
+        $this->auth->addChild($updateName, $changeName);
+    }
+
+    public function testRemoveChild()
+    {
+        $user = $this->auth->createRole('user');
+        $this->auth->add($user);
+        $this->assertCount(0, $this->auth->getChildren($user->name));
+        $changeName = $this->auth->createPermission('changeName');
+        $this->auth->add($changeName);
+        $this->auth->addChild($user, $changeName);
+        $this->assertCount(1, $this->auth->getChildren($user->name));
+        $this->assertTrue($this->auth->hasChild($user, $changeName));
+        $this->auth->removeChild($user, $changeName);
+        $this->assertFalse($this->auth->hasChild($user, $changeName));
+    }
+
+    public function testRemoveChildren()
+    {
+        $user = $this->auth->createRole('user');
+        $this->auth->add($user);
+        $this->assertCount(0, $this->auth->getChildren($user->name));
+        $changeName = $this->auth->createPermission('changeName');
+        $this->auth->add($changeName);
+        $this->auth->addChild($user, $changeName);
+        $updateName = $this->auth->createPermission('updateName');
+        $this->auth->add($updateName);
+        $this->auth->addChild($user, $updateName);
+        $this->assertCount(2, $this->auth->getChildren($user->name));
+        $this->assertTrue($this->auth->hasChild($user, $changeName));
+        $this->assertTrue($this->auth->hasChild($user, $updateName));
+        $this->auth->removeChildren($user);
+        $this->assertFalse($this->auth->hasChild($user, $changeName));
+        $this->assertFalse($this->auth->hasChild($user, $updateName));
+    }
+
     public function testGetRule()
     {
         $this->prepareData();
@@ -255,6 +391,39 @@ class OriginalYiiRbacTest extends TestCase
         $this->assertTrue(reset($roles) instanceof Role);
         $this->assertEquals($roles['reader']->name, 'reader');
     }
+
+    public function testUpdateRolesByUser()
+    {
+        $this->prepareData();
+        $reader = $this->auth->getRole('reader');
+        $this->auth->assign($reader, 0);
+        $this->auth->assign($reader, 123);
+        $roles = $this->auth->getRolesByUser('reader A');
+        $this->assertTrue(reset($roles) instanceof Role);
+        $this->assertEquals($roles['reader']->name, 'reader');
+        $roles = $this->auth->getRolesByUser(0);
+        $this->assertTrue(reset($roles) instanceof Role);
+        $this->assertEquals($roles['reader']->name, 'reader');
+        $roles = $this->auth->getRolesByUser(123);
+        $this->assertTrue(reset($roles) instanceof Role);
+        $this->assertEquals($roles['reader']->name, 'reader');
+
+        $readerRole = $this->auth->getRole('reader');
+        $this->assertFalse($this->auth->revoke($readerRole, ''));
+        $this->auth->revoke($readerRole, 'reader A');
+        $roles = $this->auth->getRolesByUser('reader A');
+        $this->assertTrue(empty($roles));
+
+        $this->assertFalse($this->auth->revokeAll(''));
+        $this->auth->revokeAll(123);
+        $roles = $this->auth->getRolesByUser(123);
+        $this->assertTrue(empty($roles));
+
+        $this->assertTrue(empty($this->auth->getRolesByUser('')));
+        $this->assertTrue(empty($this->auth->getUserIdsByRole('')));
+
+    }
+
     public function testAssignMultipleRoles()
     {
         $this->prepareData();
@@ -271,6 +440,28 @@ class OriginalYiiRbacTest extends TestCase
         $this->assertContains('reader', $roleNames, 'Roles should contain reader. Currently it has: ' . implode(', ', $roleNames));
         $this->assertContains('author', $roleNames, 'Roles should contain author. Currently it has: ' . implode(', ', $roleNames));
     }
+
+    public function testRemoveAssignmentsMultipleRoles()
+    {
+        $this->prepareData();
+        $reader = $this->auth->getRole('reader');
+        $author = $this->auth->getRole('author');
+        $this->auth->assign($reader, 'readingAuthor');
+        $this->auth->assign($author, 'readingAuthor');
+        $this->auth = $this->createManager();
+        $roles = $this->auth->getRolesByUser('readingAuthor');
+        $roleNames = [];
+        foreach ($roles as $role) {
+            $roleNames[] = $role->name;
+        }
+        $this->assertContains('reader', $roleNames, 'Roles should contain reader. Currently it has: ' . implode(', ', $roleNames));
+        $this->assertContains('author', $roleNames, 'Roles should contain author. Currently it has: ' . implode(', ', $roleNames));
+
+        $this->auth->removeAllAssignments();
+        $roles = $this->auth->getRolesByUser('readingAuthor');
+        $this->assertTrue(empty($roles));
+    }
+
     public function testAssignmentsToIntegerId()
     {
         $this->prepareData();
