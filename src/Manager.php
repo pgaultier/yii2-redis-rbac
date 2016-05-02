@@ -269,10 +269,7 @@ class Manager extends BaseManager
             $dataRow[$data[$i]] = $data[($i + 1)];
         }
         if (isset($dataRow['ruleGuid']) === true) {
-            $ruleName = $this->db->executeCommand('HGET', [$this->getRuleMappingGuidKey(), $dataRow['ruleGuid']]);
-            if ($ruleName !== null) {
-                $dataRow['ruleName'] = $ruleName;
-            }
+            $dataRow['ruleName'] = $this->db->executeCommand('HGET', [$this->getRuleMappingGuidKey(), $dataRow['ruleGuid']]);
             unset($dataRow['ruleGuid']);
         } elseif(isset($dataRow['ruleClass']) === true) {
             $dataRow['ruleName'] = $dataRow['ruleClass'];
@@ -305,8 +302,7 @@ class Manager extends BaseManager
             throw new InvalidParamException("Item name must be defined");
         }
         $itemExists = (int)$this->db->executeCommand('HEXISTS', [$this->getItemMappingKey(), $item->name]);
-        if ($itemExists === 1)
-        {
+        if ($itemExists === 1) {
             throw new DuplicateKeyException("Rule '{$item->name}' already defined");
         }
         $guid = Guid::v4();
