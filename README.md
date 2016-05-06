@@ -8,7 +8,7 @@ This extension allow the developper to use REDIS database as the RBAC repository
 [![Build Status](https://api.travis-ci.org/pgaultier/yii2-redis-rbac.svg?branch=master)](https://travis-ci.org/pgaultier/yii2-redis-rbac)
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/pgaultier/yii2-redis-rbac/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/pgaultier/yii2-redis-rbac/?branch=master)
 [![Code Coverage](https://scrutinizer-ci.com/g/pgaultier/yii2-redis-rbac/badges/coverage.png?b=master)](https://scrutinizer-ci.com/g/pgaultier/yii2-redis-rbac/?branch=master)
-[![License](https://poser.pugx.org/sweelix/yii2-postmark/license)](https://packagist.org/packages/sweelix/yii2-postmark)
+[![License](https://poser.pugx.org/sweelix/yii2-redis-rbac/license)](https://packagist.org/packages/sweelix/yii2-redis-rbac)
 
 [![Latest Development Version](https://img.shields.io/badge/unstable-devel-yellowgreen.svg)](https://packagist.org/packages/sweelix/yii2-redis-rbac)
 [![Build Status](https://travis-ci.org/pgaultier/yii2-redis-rbac.svg?branch=devel)](https://travis-ci.org/pgaultier/yii2-redis-rbac)

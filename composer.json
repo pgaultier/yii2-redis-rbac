@@ -1,6 +1,6 @@
 {
     "name": "sweelix/yii2-redis-rbac",
-    "description": "PHP 5.6+ PostmarkApp integration for the Yii framework",
+    "description": "PHP 5.6+ Redis / RBAC integration for the Yii framework",
     "keywords": ["yii2", "RBAC", "redis"],
     "type": "yii2-extension",
     "license": "BSD-3-Clause",
