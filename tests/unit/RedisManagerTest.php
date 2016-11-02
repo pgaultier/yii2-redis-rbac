@@ -318,38 +318,52 @@ class RedisManagerTest extends TestCase
     {
         $rule = new AuthorRule;
         $this->auth->add($rule);
+
         $uniqueTrait = $this->auth->createPermission('Fast Metabolism');
         $uniqueTrait->description = 'Your metabolic rate is twice normal. This means that you are much less resistant to radiation and poison, but your body heals faster.';
         $this->auth->add($uniqueTrait);
+
         $createPost = $this->auth->createPermission('createPost');
         $createPost->description = 'create a post';
         $this->auth->add($createPost);
+
         $readPost = $this->auth->createPermission('readPost');
         $readPost->description = 'read a post';
         $this->auth->add($readPost);
+
         $deletePost = $this->auth->createPermission('deletePost');
         $deletePost->description = 'delete a post';
         $this->auth->add($deletePost);
+
         $updatePost = $this->auth->createPermission('updatePost');
         $updatePost->description = 'update a post';
         $updatePost->ruleName = $rule->name;
         $this->auth->add($updatePost);
+
         $updateAnyPost = $this->auth->createPermission('updateAnyPost');
         $updateAnyPost->description = 'update any post';
         $this->auth->add($updateAnyPost);
+
+        $withoutChildren = $this->auth->createRole('withoutChildren');
+        $this->auth->add($withoutChildren);
+
         $reader = $this->auth->createRole('reader');
         $this->auth->add($reader);
         $this->auth->addChild($reader, $readPost);
+
         $author = $this->auth->createRole('author');
         $this->auth->add($author);
         $this->auth->addChild($author, $createPost);
         $this->auth->addChild($author, $updatePost);
         $this->auth->addChild($author, $reader);
+
         $admin = $this->auth->createRole('admin');
         $this->auth->add($admin);
         $this->auth->addChild($admin, $author);
         $this->auth->addChild($admin, $updateAnyPost);
+
         $this->auth->assign($uniqueTrait, 'reader A');
+
         $this->auth->assign($reader, 'reader A');
         $this->auth->assign($author, 'author B');
         $this->auth->assign($deletePost, 'author B');
@@ -422,6 +436,28 @@ class RedisManagerTest extends TestCase
         $this->assertTrue(empty($this->auth->getRolesByUser('')));
         $this->assertTrue(empty($this->auth->getUserIdsByRole('')));
 
+    }
+
+    public function testGetChildRoles()
+    {
+        $this->prepareData();
+        $roles = $this->auth->getChildRoles('withoutChildren');
+        $this->assertCount(1, $roles);
+        $this->assertInstanceOf(Role::className(), reset($roles));
+        $this->assertTrue(reset($roles)->name === 'withoutChildren');
+        $roles = $this->auth->getChildRoles('reader');
+        $this->assertCount(1, $roles);
+        $this->assertInstanceOf(Role::className(), reset($roles));
+        $this->assertTrue(reset($roles)->name === 'reader');
+        $roles = $this->auth->getChildRoles('author');
+        $this->assertCount(2, $roles);
+        $this->assertArrayHasKey('author', $roles);
+        $this->assertArrayHasKey('reader', $roles);
+        $roles = $this->auth->getChildRoles('admin');
+        $this->assertCount(3, $roles);
+        $this->assertArrayHasKey('admin', $roles);
+        $this->assertArrayHasKey('author', $roles);
+        $this->assertArrayHasKey('reader', $roles);
     }
 
     public function testAssignMultipleRoles()
