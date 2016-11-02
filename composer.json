@@ -11,14 +11,14 @@
         }
     ],
     "require": {
-        "yiisoft/yii2": ">=2.0.4",
-        "yiisoft/yii2-redis": "~2.0.0",
+        "yiisoft/yii2": "~2.0",
+        "yiisoft/yii2-redis": "~2.0",
         "php" : ">=5.6.0",
         "sweelix/guid": "~1.0"
     },
     "require-dev" : {
         "php" : ">=5.6.0",
-        "codeception/codeception": "*"
+        "codeception/codeception": "~2.2"
     },
     "autoload": {
         "psr-4": { "sweelix\\rbac\\redis\\": "src" }

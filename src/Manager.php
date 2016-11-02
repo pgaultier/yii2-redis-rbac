@@ -927,6 +927,25 @@ class Manager extends BaseManager
     /**
      * @inheritdoc
      */
+    public function getChildRoles($roleName)
+    {
+        $roleGuid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $roleName]);
+        if (is_null($roleGuid)) {
+            throw new InvalidParamException("Role \"$roleName\" not found.");
+        }
+        list(, $rolesGuid) = $this->getChildrenRecursiveGuid($roleGuid, Item::TYPE_ROLE);
+
+        $roles[$roleName] = $this->getRole($roleName);
+        foreach($rolesGuid as $roleGuid) {
+            $item = $this->getItemByGuid($roleGuid);
+            $roles[$item->name] = $item;
+        }
+        return $roles;
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function getPermissionsByRole($roleName)
     {
         $roleGuid = $this->db->executeCommand('HGET', [$this->getItemMappingKey(), $roleName]);
