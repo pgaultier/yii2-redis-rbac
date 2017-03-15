@@ -1,6 +1,10 @@
 Redis Yii2 RBAC Change Log
 ==========================
 
+
+
+Chg: update dependencies
+
 1.0.4 December 6, 2016
 ----------------------
 
