@@ -5,7 +5,7 @@
  * PHP version 5.6+
  *
  * @author Philippe Gaultier <pgaultier@sweelix.net>
- * @copyright 2010-2016 Philippe Gaultier
+ * @copyright 2010-2017 Philippe Gaultier
  * @license http://www.sweelix.net/license license
  * @version XXX
  * @link http://www.sweelix.net
@@ -46,7 +46,7 @@ use yii\redis\Connection;
  *   * auth:mappings:rulesguid : MAP (string: guid, string: ruleName)
  *
  * @author Philippe Gaultier <pgaultier@sweelix.net>
- * @copyright 2010-2016 Philippe Gaultier
+ * @copyright 2010-2017 Philippe Gaultier
  * @license http://www.sweelix.net/license license
  * @version XXX
  * @link http://www.sweelix.net
