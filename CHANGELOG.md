@@ -2,6 +2,11 @@ Redis Yii2 RBAC Change Log
 ==========================
 
 
+1.0.5.1 March 15, 2017
+--------------------
+
+Fix: fix bad commit for test config
+
 1.0.5 March 15, 2017
 --------------------
 
