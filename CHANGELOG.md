@@ -4,6 +4,7 @@ Redis Yii2 RBAC Change Log
 
 
 Chg: update dependencies
+Chg: adding PHP 7.1 testing
 
 1.0.4 December 6, 2016
 ----------------------
