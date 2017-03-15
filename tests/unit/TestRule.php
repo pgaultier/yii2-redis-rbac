@@ -5,7 +5,7 @@
  * PHP version 5.6+
  *
  * @author pgaultier
- * @copyright 2010-2016 Ibitux
+ * @copyright 2010-2017 Ibitux
  * @license http://www.ibitux.com/license license
  * @version XXX
  * @link http://www.ibitux.com
