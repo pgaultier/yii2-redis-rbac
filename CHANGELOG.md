@@ -1,7 +1,11 @@
 Redis Yii2 RBAC Change Log
 ==========================
 
+1.1.1 July 11, 2017
+-------------------
 
+ * Fix: fix missing `.gitattributes`
+ 
 1.1.0 July 11, 2017
 -------------------
 
