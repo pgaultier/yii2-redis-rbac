@@ -2,6 +2,10 @@ Redis Yii2 RBAC Change Log
 ==========================
 
 
+Chg: remove testing on `HHVM` and `PHP 5.6`
+Chg: update dependencies
+Enh: adding `gitattributes`
+
 1.0.5.1 March 15, 2017
 --------------------
 
